@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Earn Playtime</title>
+  <script src="//libtl.com/sdk.js" data-zone="10359465" data-sdk="show_10359465"></script>
+</head>
+<body>
+  <h2>Watch Ad → Earn 8 Minutes</h2>
+  <button onclick="watchAd()">Watch Ad</button>
+
+  <script>
+    const telegramId = new URLSearchParams(location.search).get("uid");
+
+    function watchAd() {
+      show_10359465().then(() => {
+        // After watching ad, user goes back to Telegram /earn
+        alert("✅ You finished the ad! Go back to Telegram and type /earn to get your redeem code.");
+      });
+    }
+  </script>
+</body>
+</html>
