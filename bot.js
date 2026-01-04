@@ -13,7 +13,7 @@ const __dirname = path.dirname(__filename);
 const TOKEN = "8569058694:AAGnF0HwzvkE10v40Fz8TpY0F9UInsHP8D0";
 
 // Your Render service HTTPS URL
-const RENDER_URL = "https://metacoresrv.onrender.com";
+const RENDER_URL = "https://project-yodb.onrender.com";
 const PORT = process.env.PORT || 3000;
 
 /* ---------------- EXPRESS SERVER ---------------- */
