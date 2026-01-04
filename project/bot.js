@@ -1,7 +1,7 @@
 import TelegramBot from "node-telegram-bot-api";
 import crypto from "crypto";
 
-const TOKEN = "PUT_YOUR_TELEGRAM_BOT_TOKEN_HERE";
+const TOKEN = "8569058694:AAGnF0HwzvkE10v40Fz8TpY0F9UInsHP8D0";
 const REPLIT_URL = "https://YOUR-REPLIT-URL"; // your deployed Mini App URL
 
 const bot = new TelegramBot(TOKEN, { polling: true });
