@@ -1,63 +1,84 @@
 import TelegramBot from "node-telegram-bot-api";
 import crypto from "crypto";
+import express from "express";
+import path from "path";
+import { fileURLToPath } from "url";
 
+/* ---------------- PATH SETUP ---------------- */
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+/* ---------------- CONFIG ---------------- */
+// ❗ TOKEN IS HARD-CODED AS YOU REQUESTED
 const TOKEN = "8569058694:AAGnF0HwzvkE10v40Fz8TpY0F9UInsHP8D0";
-const REPLIT_URL = "https://YOUR-REPLIT-URL"; // your deployed Mini App URL
 
+// Your Render service URL
+const RENDER_URL = "https://YOUR-SERVICE-NAME.onrender.com";
+const PORT = 3000;
+
+/* ---------------- EXPRESS SERVER ---------------- */
+const app = express();
+app.use(express.static(path.join(__dirname, "public")));
+
+app.get("/", (req, res) => {
+  res.send("Telegram bot + Monetag server running");
+});
+
+app.listen(PORT, () => {
+  console.log("🌐 Web server running on port", PORT);
+});
+
+/* ---------------- TELEGRAM BOT ---------------- */
 const bot = new TelegramBot(TOKEN, { polling: true });
+console.log("🤖 Telegram bot started");
 
-// Settings
+/* ---------------- SETTINGS ---------------- */
 const REWARD_SECONDS = 8 * 60;       // +8 minutes
-const COOLDOWN_MS = 3 * 60 * 1000;   // 3-minute cooldown
+const COOLDOWN_MS = 3 * 60 * 1000;   // 3 minutes
 
+/* ---------------- STORAGE (MEMORY) ---------------- */
 const users = {}; // userId -> { lastEarn }
-const codes = {}; // code -> { reward, used, expires }
+const codes = {}; // code -> { used, expires }
 
-// /earn command
+/* ---------------- /earn COMMAND ---------------- */
 bot.onText(/\/earn/, (msg) => {
+  const chatId = msg.chat.id;
   const userId = msg.from.id;
   const now = Date.now();
 
-  // Check cooldown
+  // cooldown check
   if (users[userId] && now - users[userId].lastEarn < COOLDOWN_MS) {
-    const wait = Math.ceil((COOLDOWN_MS - (now - users[userId].lastEarn)) / 1000);
-    return bot.sendMessage(msg.chat.id, `⏳ Cooldown active. Try again in ${wait} seconds.`);
+    const wait = Math.ceil(
+      (COOLDOWN_MS - (now - users[userId].lastEarn)) / 1000
+    );
+    return bot.sendMessage(
+      chatId,
+      `⏳ Cooldown active. Try again in ${wait} seconds.`
+    );
   }
 
-  // Generate one-time redeem code
+  // generate redeem code
   const code = crypto.randomBytes(3).toString("hex").toUpperCase();
+
   codes[code] = {
-    reward: REWARD_SECONDS,
     used: false,
-    expires: now + 10 * 60 * 1000 // expires in 10 minutes
+    expires: now + 10 * 60 * 1000
   };
 
   users[userId] = { lastEarn: now };
 
-  const monetagLink = `${REPLIT_URL}/monetag-miniapp.html?uid=${userId}`;
+  const monetagLink = `${RENDER_URL}/monetag-miniapp.html?uid=${userId}`;
 
   bot.sendMessage(
-    msg.chat.id,
-    `🎬 Watch the ad to earn +8 minutes!\n\n` +
-    `🔗 Click here: ${monetagLink}\n\n` +
-    `✅ After watching, you will get a redeem code:\n` +
-    `§ ${code} §\n\n` +
-    `Use in Minecraft: /redeem ${code}\n` +
-    `⏳ Cooldown: 3 minutes`
+    chatId,
+    `🎬 Watch an ad to earn *+8 minutes*\n\n` +
+    `🔗 ${monetagLink}\n\n` +
+    `🔑 Redeem code:\n\`${code}\`\n\n` +
+    `➡ Use in Minecraft:\n/redeem ${code}\n\n` +
+    `⏳ Cooldown: 3 minutes`,
+    { parse_mode: "Markdown" }
   );
 });
 
-// Optional admin command to mark code as used
-bot.onText(/\/use (.+)/, (msg, match) => {
-  const code = match[1].toUpperCase();
-  const entry = codes[code];
-
-  if (!entry) return bot.sendMessage(msg.chat.id, "❌ Invalid code");
-  if (entry.used) return bot.sendMessage(msg.chat.id, "❌ Code already used");
-  if (Date.now() > entry.expires) return bot.sendMessage(msg.chat.id, "❌ Code expired");
-
-  entry.used = true;
-  bot.sendMessage(msg.chat.id, "✅ Code marked as used");
-});
-
-console.log("Telegram bot running (8 min reward, 3 min cooldown, Monetag integrated)");
+/* ---------------- DEBUG ---------------- */
+bot.on("polling_error", console.log);
