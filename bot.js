@@ -9,36 +9,79 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 /* ---------------- CONFIG ---------------- */
-// ❗ TOKEN IS HARD-CODED AS YOU REQUESTED
+// ❗ Hard-coded Telegram token (replace with your bot token)
 const TOKEN = "8569058694:AAGnF0HwzvkE10v40Fz8TpY0F9UInsHP8D0";
 
-// Your Render service URL
+// Your Render service HTTPS URL
 const RENDER_URL = "https://metacoresrv.onrender.com";
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 /* ---------------- EXPRESS SERVER ---------------- */
 const app = express();
 app.use(express.static(path.join(__dirname, "public")));
+app.use(express.json()); // for webhook JSON
 
 app.get("/", (req, res) => {
   res.send("Telegram bot + Monetag server running");
 });
 
 app.listen(PORT, () => {
-  console.log("🌐 Web server running on port", PORT);
+  console.log(`🌐 Web server running on port ${PORT}`);
 });
 
 /* ---------------- TELEGRAM BOT ---------------- */
-const bot = new TelegramBot(TOKEN, { polling: true });
-console.log("🤖 Telegram bot started");
+const bot = new TelegramBot(TOKEN);
+
+/* ---------------- WEBHOOK SETUP ---------------- */
+const WEBHOOK_PATH = `/telegram-webhook-${TOKEN}`;
+const WEBHOOK_URL = `${RENDER_URL}${WEBHOOK_PATH}`;
+
+bot.setWebHook(WEBHOOK_URL);
+
+app.post(WEBHOOK_PATH, (req, res) => {
+  bot.processUpdate(req.body);
+  res.sendStatus(200);
+});
 
 /* ---------------- SETTINGS ---------------- */
 const REWARD_SECONDS = 8 * 60;       // +8 minutes
 const COOLDOWN_MS = 3 * 60 * 1000;   // 3 minutes
 
-/* ---------------- STORAGE (MEMORY) ---------------- */
+/* ---------------- STORAGE ---------------- */
 const users = {}; // userId -> { lastEarn }
 const codes = {}; // code -> { used, expires }
+
+/* ---------------- COMMAND MENU ---------------- */
+bot.setMyCommands([
+  { command: "earn", description: "Watch ad to get +8 min playtime" },
+  { command: "redeem", description: "Redeem a code in Minecraft" },
+  { command: "check", description: "Check if a code is valid" }
+]).then(() => console.log("✅ Commands registered"));
+
+/* ---------------- /start WITH BUTTONS ---------------- */
+bot.onText(/\/start/, (msg) => {
+  bot.sendMessage(msg.chat.id, "Welcome! Choose an action:", {
+    reply_markup: {
+      keyboard: [
+        [{ text: "🎬 Earn Playtime" }, { text: "🔑 Redeem Code" }]
+      ],
+      resize_keyboard: true,
+      one_time_keyboard: true
+    }
+  });
+});
+
+/* ---------------- INLINE BUTTON HANDLING ---------------- */
+bot.on("message", (msg) => {
+  const text = msg.text;
+  if (!text) return;
+
+  if (text === "🎬 Earn Playtime") {
+    bot.emit("text", { text: "/earn", chat: msg.chat, from: msg.from });
+  } else if (text === "🔑 Redeem Code") {
+    bot.sendMessage(msg.chat.id, "Please type /redeem YOUR_CODE");
+  }
+});
 
 /* ---------------- /earn COMMAND ---------------- */
 bot.onText(/\/earn/, (msg) => {
@@ -62,7 +105,7 @@ bot.onText(/\/earn/, (msg) => {
 
   codes[code] = {
     used: false,
-    expires: now + 10 * 60 * 1000
+    expires: now + 10 * 60 * 1000 // 10 minutes
   };
 
   users[userId] = { lastEarn: now };
@@ -80,5 +123,36 @@ bot.onText(/\/earn/, (msg) => {
   );
 });
 
-/* ---------------- DEBUG ---------------- */
-bot.on("polling_error", console.log);
+/* ---------------- /check COMMAND ---------------- */
+bot.onText(/\/check (.+)/, (msg, match) => {
+  const code = match[1].toUpperCase();
+  const entry = codes[code];
+
+  if (!entry) return bot.sendMessage(msg.chat.id, "❌ Code not found");
+  if (entry.used) return bot.sendMessage(msg.chat.id, "❌ Code already used");
+  if (Date.now() > entry.expires)
+    return bot.sendMessage(msg.chat.id, "❌ Code expired");
+
+  bot.sendMessage(msg.chat.id, "✅ Code is valid");
+});
+
+/* ---------------- /redeem COMMAND (MINECRAFT) ---------------- */
+bot.onText(/\/redeem (.+)/, (msg, match) => {
+  const code = match[1].toUpperCase();
+  const entry = codes[code];
+
+  if (!entry) return bot.sendMessage(msg.chat.id, "❌ Code not found");
+  if (entry.used) return bot.sendMessage(msg.chat.id, "❌ Code already used");
+  if (Date.now() > entry.expires)
+    return bot.sendMessage(msg.chat.id, "❌ Code expired");
+
+  // Mark code as used
+  entry.used = true;
+
+  bot.sendMessage(
+    msg.chat.id,
+    `✅ Code redeemed! You got +8 minutes in Minecraft.`
+  );
+
+  // Here you would normally call your Minecraft server API
+});
