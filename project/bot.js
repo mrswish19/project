@@ -13,7 +13,7 @@ const __dirname = path.dirname(__filename);
 const TOKEN = "8569058694:AAGnF0HwzvkE10v40Fz8TpY0F9UInsHP8D0";
 
 // Your Render service URL
-const RENDER_URL = "https://YOUR-SERVICE-NAME.onrender.com";
+const RENDER_URL = "https://metacoresrv.onrender.com";
 const PORT = 3000;
 
 /* ---------------- EXPRESS SERVER ---------------- */
