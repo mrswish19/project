@@ -5,7 +5,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 
 // ---------------- CONFIG ----------------
-const TOKEN = "PUT_YOUR_NEW_TOKEN_HERE"; // CHANGE TOKEN
+const TOKEN = "8569058694:AAGTcsW0BNmXF3VsoZ_VS9jn9ePZkiIGQY4"; // CHANGE TOKEN
 const PORT = process.env.PORT || 3000;
 const RENDER_URL = "https://project-yodb.onrender.com"; // YOUR render URL
 const REWARD_SECONDS = 8 * 60;
