@@ -1,158 +1,95 @@
+import express from "express";
 import TelegramBot from "node-telegram-bot-api";
 import crypto from "crypto";
-import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
 
-/* ---------------- PATH SETUP ---------------- */
+// ------------------- CONFIG -------------------
+const TOKEN = "8569058694:AAGnF0HwzvkE10v40Fz8TpY0F9UInsHP8D0"; // Telegram bot token
+const PORT = process.env.PORT || 3000;
+const REWARD_SECONDS = 8 * 60;       // +8 minutes
+const COOLDOWN_MS = 3 * 60 * 1000;   // 3 minutes cooldown
+const MINIAPP_HTML = "monetag-miniapp.html";
+const RENDER_URL = "https://project-yodb.onrender.com"; // <-- Your Render URL here
+
+// ------------------- PATH SETUP -------------------
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-/* ---------------- CONFIG ---------------- */
-// ❗ Hard-coded Telegram token (replace with your bot token)
-const TOKEN = "8569058694:AAGnF0HwzvkE10v40Fz8TpY0F9UInsHP8D0";
-
-// Your Render service HTTPS URL
-const RENDER_URL = "https://project-yodb.onrender.com";
-const PORT = process.env.PORT || 3000;
-
-/* ---------------- EXPRESS SERVER ---------------- */
+// ------------------- EXPRESS SERVER -------------------
 const app = express();
-app.use(express.static(path.join(__dirname, "public")));
-app.use(express.json()); // for webhook JSON
+app.use(express.json());
+app.use(express.static(path.join(__dirname, "public"))); // serve Monetag HTML
 
 app.get("/", (req, res) => {
-  res.send("Telegram bot + Monetag server running");
+  res.send("Telegram bot + Redeem API running!");
 });
 
-app.listen(PORT, () => {
-  console.log(`🌐 Web server running on port ${PORT}`);
-});
+// ------------------- DATA STORAGE -------------------
+const users = {}; // userId -> last earn timestamp
+const codes = {}; // code -> { used, expires, reward }
 
-/* ---------------- TELEGRAM BOT ---------------- */
-const bot = new TelegramBot(TOKEN);
+// ------------------- TELEGRAM BOT -------------------
+const bot = new TelegramBot(TOKEN, { polling: true });
 
-/* ---------------- WEBHOOK SETUP ---------------- */
-const WEBHOOK_PATH = `/telegram-webhook-${TOKEN}`;
-const WEBHOOK_URL = `${RENDER_URL}${WEBHOOK_PATH}`;
-
-bot.setWebHook(WEBHOOK_URL);
-
-app.post(WEBHOOK_PATH, (req, res) => {
-  bot.processUpdate(req.body);
-  res.sendStatus(200);
-});
-
-/* ---------------- SETTINGS ---------------- */
-const REWARD_SECONDS = 8 * 60;       // +8 minutes
-const COOLDOWN_MS = 3 * 60 * 1000;   // 3 minutes
-
-/* ---------------- STORAGE ---------------- */
-const users = {}; // userId -> { lastEarn }
-const codes = {}; // code -> { used, expires }
-
-/* ---------------- COMMAND MENU ---------------- */
-bot.setMyCommands([
-  { command: "earn", description: "Watch ad to get +8 min playtime" },
-  { command: "redeem", description: "Redeem a code in Minecraft" },
-  { command: "check", description: "Check if a code is valid" }
-]).then(() => console.log("✅ Commands registered"));
-
-/* ---------------- /start WITH BUTTONS ---------------- */
-bot.onText(/\/start/, (msg) => {
-  bot.sendMessage(msg.chat.id, "Welcome! Choose an action:", {
-    reply_markup: {
-      keyboard: [
-        [{ text: "🎬 Earn Playtime" }, { text: "🔑 Redeem Code" }]
-      ],
-      resize_keyboard: true,
-      one_time_keyboard: true
-    }
-  });
-});
-
-/* ---------------- INLINE BUTTON HANDLING ---------------- */
-bot.on("message", (msg) => {
-  const text = msg.text;
-  if (!text) return;
-
-  if (text === "🎬 Earn Playtime") {
-    bot.emit("text", { text: "/earn", chat: msg.chat, from: msg.from });
-  } else if (text === "🔑 Redeem Code") {
-    bot.sendMessage(msg.chat.id, "Please type /redeem YOUR_CODE");
-  }
-});
-
-/* ---------------- /earn COMMAND ---------------- */
+// --- /earn command ---
 bot.onText(/\/earn/, (msg) => {
-  const chatId = msg.chat.id;
   const userId = msg.from.id;
   const now = Date.now();
 
-  // cooldown check
+  // Cooldown check
   if (users[userId] && now - users[userId].lastEarn < COOLDOWN_MS) {
-    const wait = Math.ceil(
-      (COOLDOWN_MS - (now - users[userId].lastEarn)) / 1000
-    );
-    return bot.sendMessage(
-      chatId,
-      `⏳ Cooldown active. Try again in ${wait} seconds.`
-    );
+    const wait = Math.ceil((COOLDOWN_MS - (now - users[userId].lastEarn)) / 1000);
+    return bot.sendMessage(msg.chat.id, `⏳ Cooldown active. Try again in ${wait}s`);
   }
 
-  // generate redeem code
+  // Generate redeem code
   const code = crypto.randomBytes(3).toString("hex").toUpperCase();
-
   codes[code] = {
     used: false,
-    expires: now + 10 * 60 * 1000 // 10 minutes
+    expires: now + 10 * 60 * 1000, // 10 min expiry
+    reward: REWARD_SECONDS
   };
 
   users[userId] = { lastEarn: now };
 
-  const monetagLink = `${RENDER_URL}/monetag-miniapp.html?uid=${userId}`;
-
-  bot.sendMessage(
-    chatId,
-    `🎬 Watch an ad to earn *+8 minutes*\n\n` +
-    `🔗 ${monetagLink}\n\n` +
-    `🔑 Redeem code:\n\`${code}\`\n\n` +
-    `➡ Use in Minecraft:\n/redeem ${code}\n\n` +
-    `⏳ Cooldown: 3 minutes`,
-    { parse_mode: "Markdown" }
-  );
-});
-
-/* ---------------- /check COMMAND ---------------- */
-bot.onText(/\/check (.+)/, (msg, match) => {
-  const code = match[1].toUpperCase();
-  const entry = codes[code];
-
-  if (!entry) return bot.sendMessage(msg.chat.id, "❌ Code not found");
-  if (entry.used) return bot.sendMessage(msg.chat.id, "❌ Code already used");
-  if (Date.now() > entry.expires)
-    return bot.sendMessage(msg.chat.id, "❌ Code expired");
-
-  bot.sendMessage(msg.chat.id, "✅ Code is valid");
-});
-
-/* ---------------- /redeem COMMAND (MINECRAFT) ---------------- */
-bot.onText(/\/redeem (.+)/, (msg, match) => {
-  const code = match[1].toUpperCase();
-  const entry = codes[code];
-
-  if (!entry) return bot.sendMessage(msg.chat.id, "❌ Code not found");
-  if (entry.used) return bot.sendMessage(msg.chat.id, "❌ Code already used");
-  if (Date.now() > entry.expires)
-    return bot.sendMessage(msg.chat.id, "❌ Code expired");
-
-  // Mark code as used
-  entry.used = true;
+  // Monetag link with Render URL
+  const monetagLink = `${RENDER_URL}/${MINIAPP_HTML}?uid=${userId}`;
 
   bot.sendMessage(
     msg.chat.id,
-    `✅ Code redeemed! You got +8 minutes in Minecraft.`
+    `🎬 Watch an ad to earn +8 minutes!\n\n` +
+    `🔗 Click here: ${monetagLink}\n\n` +
+    `🔑 Your redeem code:\n§ ${code} §\n\n` +
+    `Use in Minecraft: /redeem ${code}\n` +
+    `⏳ Cooldown: 3 minutes`
   );
-
-  // Here you would normally call your Minecraft server API
 });
+
+// ------------------- REDEEM API -------------------
+app.post("/api/redeem", (req, res) => {
+  const { code, player } = req.body;
+  if (!code || !player) return res.status(400).json({ success: false, msg: "Missing code or player" });
+
+  const entry = codes[code.toUpperCase()];
+  if (!entry) return res.json({ success: false, msg: "Code not found" });
+  if (entry.used) return res.json({ success: false, msg: "Code already used" });
+  if (Date.now() > entry.expires) return res.json({ success: false, msg: "Code expired" });
+
+  entry.used = true;
+
+  res.json({
+    success: true,
+    reward: entry.reward,
+    msg: `Code redeemed for ${player}`
+  });
+
+  console.log(`Redeemed code ${code} for player ${player} (+${entry.reward}s)`);
+});
+
+// ------------------- START SERVER -------------------
+app.listen(PORT, () => {
+  console.log(`Node.js server running on port ${PORT}`);
+});
+
+console.log("Telegram bot running with 8-min reward and 3-min cooldown");
