@@ -9,7 +9,7 @@ const TOKEN = "8569058694:AAGTcsW0BNmXF3VsoZ_VS9jn9ePZkiIGQY4"; // CHANGE TOKEN
 const PORT = process.env.PORT || 3000;
 const RENDER_URL = "https://project-yodb.onrender.com"; // YOUR render URL
 const REWARD_SECONDS = 8 * 60;
-const COOLDOWN_MS = 3 * 60 * 1000;
+const COOLDOWN_MS = 1 * 60 * 1000;
 const MINIAPP_HTML = "monetag-miniapp.html";
 
 // ---------------- PATH ----------------
