@@ -48,6 +48,20 @@ bot.setMyCommands([
   }
 ]);
 
+bot.onText(/\/earn/, (msg) => {
+  bot.sendMessage(
+    msg.chat.id,
+    "🎮 Get playtime by watching an ad:",
+    {
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: "▶ Watch Ad & Get Playtime", callback_data: "watch_ad" }]
+        ]
+      }
+    }
+  );
+});
+
 bot.onText(/\/start/, (msg) => {
   bot.sendMessage(
     msg.chat.id,
