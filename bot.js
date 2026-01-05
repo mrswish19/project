@@ -5,13 +5,14 @@ import path from "path";
 import { fileURLToPath } from "url";
 
 // ---------------- CONFIG ----------------
-const TOKEN = "8569058694:AAGnF0HwzvkE10v40Fz8TpY0F9UInsHP8D0";
+const TOKEN = "PUT_YOUR_NEW_TOKEN_HERE"; // CHANGE TOKEN
 const PORT = process.env.PORT || 3000;
+const RENDER_URL = "https://project-yodb.onrender.com"; // YOUR render URL
 const REWARD_SECONDS = 8 * 60;
 const COOLDOWN_MS = 3 * 60 * 1000;
-const RENDER_URL = "https://project-yodb.onrender.com";
+const MINIAPP_HTML = "monetag-miniapp.html";
 
-// ---------------- PATH SETUP ----------------
+// ---------------- PATH ----------------
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -20,69 +21,89 @@ const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
-app.get("/", (_, res) => res.send("Bot running"));
+app.get("/", (req, res) => {
+  res.send("Bot running (webhook mode)");
+});
 
-// ---------------- STORAGE ----------------
-const users = {}; // userId -> lastEarn
-const pending = {}; // userId -> waitingForAd
-const codes = {}; // code -> data
+// ---------------- DATA ----------------
+const users = {};
+const codes = {};
 
-// ---------------- TELEGRAM BOT ----------------
-const bot = new TelegramBot(TOKEN, { polling: true });
+// ---------------- TELEGRAM BOT (NO POLLING) ----------------
+const bot = new TelegramBot(TOKEN);
 
-// /start or /earn
-bot.onText(/\/(start|earn)/, (msg) => {
-  const userId = msg.from.id;
-  const now = Date.now();
+// ---------------- WEBHOOK ----------------
+bot.setWebHook(`${RENDER_URL}/bot${TOKEN}`);
 
-  if (users[userId] && now - users[userId] < COOLDOWN_MS) {
-    const wait = Math.ceil((COOLDOWN_MS - (now - users[userId])) / 1000);
-    return bot.sendMessage(msg.chat.id, `⏳ Cooldown active. Try again in ${wait}s`);
-  }
+app.post(`/bot${TOKEN}`, (req, res) => {
+  bot.processUpdate(req.body);
+  res.sendStatus(200);
+});
 
-  pending[userId] = true;
-
-  bot.sendMessage(msg.chat.id,
-    "🎬 Watch an ad to get **+8 minutes** playtime",
+// ---------------- COMMANDS ----------------
+bot.onText(/\/start/, (msg) => {
+  bot.sendMessage(
+    msg.chat.id,
+    "🎮 Welcome!\n\nClick the button below to watch an ad and get playtime.",
     {
-      parse_mode: "Markdown",
       reply_markup: {
-        inline_keyboard: [[
-          {
-            text: "🎬 Watch Ad & Get Playtime",
-            url: `${RENDER_URL}/monetag-miniapp.html?uid=${userId}`
-          }
-        ]]
+        inline_keyboard: [
+          [{ text: "▶ Watch Ad & Get Playtime", callback_data: "watch_ad" }]
+        ]
       }
     }
   );
 });
 
-// ---------------- AD COMPLETE CALLBACK ----------------
-app.post("/api/ad-complete", (req, res) => {
-  const { uid } = req.body;
-  if (!uid || !pending[uid]) {
-    return res.status(400).json({ success: false });
-  }
+bot.on("callback_query", (q) => {
+  if (q.data !== "watch_ad") return;
 
-  delete pending[uid];
-  users[uid] = Date.now();
+  const userId = q.from.id;
+  const now = Date.now();
+
+  if (users[userId] && now - users[userId] < COOLDOWN_MS) {
+    return bot.answerCallbackQuery(q.id, {
+      text: "⏳ Cooldown active. Try later.",
+      show_alert: true
+    });
+  }
 
   const code = crypto.randomBytes(3).toString("hex").toUpperCase();
 
   codes[code] = {
     used: false,
-    reward: REWARD_SECONDS,
-    expires: Date.now() + 10 * 60 * 1000
+    expires: now + 10 * 60 * 1000,
+    reward: REWARD_SECONDS
   };
 
-  bot.sendMessage(uid,
-    `✅ Ad completed!\n\n` +
-    `🔑 Your redeem code:\n§ ${code} §\n\n` +
-    `Use in Minecraft:\n/redeem ${code}`
+  users[userId] = now;
+
+  const adLink = `${RENDER_URL}/${MINIAPP_HTML}?uid=${userId}`;
+
+  bot.sendMessage(
+    q.message.chat.id,
+    `🎬 Watch the ad first:\n${adLink}\n\n` +
+    `After watching, your redeem code will appear here.`,
+  );
+});
+
+// ---------------- AD COMPLETE ----------------
+app.post("/api/ad-complete", (req, res) => {
+  const { uid } = req.body;
+  if (!uid) return res.sendStatus(400);
+
+  const code = Object.keys(codes).find(
+    c => !codes[c].used && codes[c].expires > Date.now()
   );
 
-  res.json({ success: true });
+  if (!code) return res.sendStatus(404);
+
+  bot.sendMessage(
+    uid,
+    `✅ Ad completed!\n\n🔑 Redeem Code:\n§ ${code} §\n\nUse in Minecraft:\n/redeem ${code}`
+  );
+
+  res.sendStatus(200);
 });
 
 // ---------------- REDEEM API ----------------
@@ -90,14 +111,19 @@ app.post("/api/redeem", (req, res) => {
   const { code, player } = req.body;
   const entry = codes[code?.toUpperCase()];
 
-  if (!entry) return res.json({ success: false, msg: "Invalid code" });
-  if (entry.used) return res.json({ success: false, msg: "Already used" });
-  if (Date.now() > entry.expires) return res.json({ success: false, msg: "Expired" });
+  if (!entry) return res.json({ success: false });
+  if (entry.used) return res.json({ success: false });
+  if (Date.now() > entry.expires) return res.json({ success: false });
 
   entry.used = true;
 
-  res.json({ success: true, reward: entry.reward });
+  res.json({
+    success: true,
+    reward: entry.reward
+  });
 });
 
 // ---------------- START ----------------
-app.listen(PORT, () => console.log("Server running"));
+app.listen(PORT, () => {
+  console.log("Server running (WEBHOOK MODE)");
+});
