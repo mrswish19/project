@@ -1,22 +1,151 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Earn Playtime</title>
-  <script src="//libtl.com/sdk.js" data-zone="10359465" data-sdk="show_10359465"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Get Playtime</title>
+
+  <!-- Monetag SDK -->
+  <script src="//libtl.com/sdk.js"
+    data-zone="10359465"
+    data-sdk="show_10359465"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: linear-gradient(135deg, #1e1e2f, #2b2b45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+    }
+
+    .card {
+      background: #111827;
+      border-radius: 16px;
+      padding: 24px;
+      max-width: 360px;
+      width: 90%;
+      text-align: center;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+    }
+
+    .icon {
+      font-size: 48px;
+      margin-bottom: 12px;
+    }
+
+    h1 {
+      font-size: 20px;
+      margin-bottom: 8px;
+    }
+
+    p {
+      font-size: 14px;
+      opacity: 0.85;
+      margin-bottom: 20px;
+    }
+
+    button {
+      width: 100%;
+      padding: 14px;
+      font-size: 16px;
+      font-weight: bold;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      background: linear-gradient(135deg, #22c55e, #16a34a);
+      color: #000;
+      transition: transform 0.15s ease, opacity 0.15s ease;
+    }
+
+    button:hover {
+      transform: scale(1.03);
+      opacity: 0.95;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .status {
+      margin-top: 16px;
+      font-size: 14px;
+      min-height: 18px;
+    }
+
+    .success {
+      color: #22c55e;
+    }
+
+    .error {
+      color: #ef4444;
+    }
+  </style>
 </head>
 <body>
-  <h2>Watch Ad → Earn 8 Minutes</h2>
-  <button onclick="watchAd()">Watch Ad</button>
+
+  <div class="card">
+    <div class="icon">🎬</div>
+    <h1>Get +8 Minutes Playtime</h1>
+    <p>Watch one short ad to unlock extra playtime in Minecraft.</p>
+
+    <button id="watchBtn" onclick="watchAd()">
+      Watch Ad & Get Playtime
+    </button>
+
+    <div id="status" class="status"></div>
+  </div>
 
   <script>
-    const telegramId = new URLSearchParams(location.search).get("uid");
+    const uid = new URLSearchParams(window.location.search).get("uid");
+    const btn = document.getElementById("watchBtn");
+    const status = document.getElementById("status");
 
     function watchAd() {
-      show_10359465().then(() => {
-        // After watching ad, user goes back to Telegram /earn
-        alert("✅ You finished the ad! Go back to Telegram and type /earn to get your redeem code.");
-      });
+      if (!uid) {
+        status.textContent = "❌ Invalid user session.";
+        status.className = "status error";
+        return;
+      }
+
+      btn.disabled = true;
+      status.textContent = "Loading ad...";
+      status.className = "status";
+
+      show_10359465()
+        .then(() => {
+          status.textContent = "Processing reward...";
+          return fetch("/api/ad-complete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ uid })
+          });
+        })
+        .then(res => res.json())
+        .then(data => {
+          if (data.success) {
+            status.textContent = "✅ Ad completed! Return to Telegram.";
+            status.className = "status success";
+          } else {
+            throw new Error("Reward failed");
+          }
+        })
+        .catch(() => {
+          btn.disabled = false;
+          status.textContent = "❌ Something went wrong. Try again.";
+          status.className = "status error";
+        });
     }
   </script>
+
 </body>
 </html>
