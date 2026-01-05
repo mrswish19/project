@@ -5,7 +5,7 @@ import { fileURLToPath } from "url";
 import fs from "fs";
 
 // ---------------- CONFIG ----------------
-const TOKEN = "8569058694:AAGTcsW0BNmXF3VsoZ_VS9jn9ePZkiIGQY4"; 
+const TOKEN = "7539395815:AAFL7RULmJoOBm1y697fmvJSF1VZcMuaR74"; 
 const PORT = process.env.PORT || 3000;
 const RENDER_URL = "https://project-yodb.onrender.com";
 const REWARD_SECONDS = 20 * 60;       // 20 minutes reward
