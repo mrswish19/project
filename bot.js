@@ -95,7 +95,7 @@ app.post("/api/ad-complete", (req, res) => {
   codeUsage[code] = Date.now();
 
   bot.sendMessage(uid,
-    `✅ Ad completed!\n\n🔑 Redeem Code:\n§ ${code} §\nUse in Minecraft with /function redeem`
+    `✅ Ad completed!\n\n🔑 Redeem Code:\n {code} \nUse in Minecraft with /function redeem_{code}`
   );
 
   res.sendStatus(200);
