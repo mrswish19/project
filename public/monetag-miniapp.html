@@ -6,9 +6,7 @@
   <title>Get Playtime</title>
 
   <!-- Monetag SDK -->
-  <script src="//libtl.com/sdk.js"
-    data-zone="10359465"
-    data-sdk="show_10359465"></script>
+  <script src='//libtl.com/sdk.js' data-zone='10427546' data-sdk='show_10427546'></script>
 
   <style>
     * {
@@ -121,7 +119,7 @@
       status.textContent = "Loading ad...";
       status.className = "status";
 
-      show_10359465()
+      show_10427546()
         .then(() => {
           status.textContent = "Processing reward...";
           return fetch("/api/ad-complete", {
