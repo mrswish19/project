@@ -103,7 +103,6 @@ ${code}
 
 Use in Minecraft with /function redeem_${code}`
 );
-                 );
 
   res.sendStatus(200);
 });
