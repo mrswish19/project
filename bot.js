@@ -8,8 +8,8 @@ import fs from "fs";
 const TOKEN = "7539395815:AAFL7RULmJoOBm1y697fmvJSF1VZcMuaR74";
 const PORT = process.env.PORT || 3000;
 const RENDER_URL = "https://project-yodb.onrender.com";
-const REWARD_SECONDS = 20 * 60;
-const COOLDOWN_MS = 30 * 60 * 1000;
+const REWARD_SECONDS = 15 * 60;
+const COOLDOWN_MS = 15 * 60 * 1000;
 const MINIAPP_HTML = "monetag-miniapp.html";
 
 // ---------------- PATH ----------------
