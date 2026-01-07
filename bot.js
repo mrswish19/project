@@ -7,10 +7,10 @@ import fs from "fs";
 // ---------------- CONFIG ----------------
 const TOKEN = "7539395815:AAFL7RULmJoOBm1y697fmvJSF1VZcMuaR74"; 
 const PORT = process.env.PORT || 3000;
-const RENDER_URL = "https://project-yodb.onrender.com";
+const RENDER_URL = "https://project-yodb.onrender.com";  // your server URL
 const REWARD_SECONDS = 20 * 60;       // 20 minutes reward
-const COOLDOWN_MS = 1 * 60 * 1000;    // 1 minute cooldown
-const MINIAPP_HTML = "monetag-miniapp.html";
+const COOLDOWN_MS = 30 * 60 * 1000;   // 30-minute cooldown for normal codes
+const MINIAPP_HTML = "monetag-miniapp.html";  // mini ad app HTML
 
 // ---------------- PATH ----------------
 const __filename = fileURLToPath(import.meta.url);
@@ -26,8 +26,8 @@ app.get("/", (req, res) => res.send("Bot running (webhook mode)"));
 // ---------------- LOAD CODES ----------------
 const CODE_POOL = JSON.parse(fs.readFileSync("codes.json")); // pre-made list of codes
 let index = Number(fs.readFileSync("index.txt", "utf8") || 0);
-const users = {}; // userId -> last earn timestamp
-const codeUsage = {}; // code -> last used timestamp
+const users = {};       // userId -> last earn timestamp
+const codeUsage = {};   // code -> last used timestamp (normal codes only)
 
 function saveIndex() {
   fs.writeFileSync("index.txt", String(index));
@@ -60,7 +60,8 @@ bot.on("callback_query", (q) => {
   const userId = q.from.id;
   const now = Date.now();
 
-  if (users[userId] && now - users[userId].lastEarn < COOLDOWN_MS) {
+  // User cooldown (prevent spamming earn button)
+  if (users[userId] && now - users[userId] < COOLDOWN_MS) {
     return bot.answerCallbackQuery(q.id, { text: "⏳ Cooldown active. Try later.", show_alert: true });
   }
 
@@ -69,8 +70,7 @@ bot.on("callback_query", (q) => {
   const adLink = `${RENDER_URL}/${MINIAPP_HTML}?uid=${userId}`;
 
   bot.sendMessage(q.message.chat.id,
-    `🎬 Watch the ad first:\n${adLink}\n\n` +
-    `After watching, your redeem code will appear here.`
+    `🎬 Watch the ad first:\n${adLink}\n\nAfter watching, your redeem code will appear here.`
   );
 });
 
@@ -79,31 +79,52 @@ app.post("/api/ad-complete", (req, res) => {
   const { uid } = req.body;
   if (!uid) return res.sendStatus(400);
 
-  // Find the next available code (not used in last 24h)
-  let attempts = 0;
-  let code;
-  while (attempts < CODE_POOL.length) {
-    code = CODE_POOL[index];
-    index = (index + 1) % CODE_POOL.length; // loop codes
-    saveIndex();
-    if (!codeUsage[code] || (Date.now() - codeUsage[code] >= 24*60*60*1000)) break;
-    attempts++;
+  // --------------------
+  // Pick a code randomly
+  // --------------------
+  let selectedCode = null;
+  const shuffled = [...CODE_POOL].sort(() => Math.random() - 0.5);
+
+  for (const code of shuffled) {
+    // ✅ H4J5K6 is always available
+    if (code === "H4J5K6") {
+      selectedCode = code;
+      break;
+    }
+
+    // Normal codes follow 30-min cooldown
+    if (!codeUsage[code] || (Date.now() - codeUsage[code] >= COOLDOWN_MS)) {
+      selectedCode = code;
+      break;
+    }
   }
 
-  if (!code) return res.sendStatus(404);
+  if (!selectedCode) return res.sendStatus(404);
 
-  codeUsage[code] = Date.now();
+  // Mark code as used (skip H4J5K6)
+  if (selectedCode !== "H4J5K6") {
+    codeUsage[selectedCode] = Date.now();
+  }
 
+  // Send code to user
   bot.sendMessage(
-  uid,
-  `✅ Ad completed!
+    uid,
+    `✅ Ad completed!\n\n🔑 Redeem Code:\n${selectedCode}\n\nUse in Minecraft with /function redeem_${selectedCode}`
+  );
 
-🔑 Redeem Code:
-${code}
+  res.sendStatus(200);
+});
 
-Use in Minecraft with /function redeem_${code}`
-);
+// ---------------- REDEEM API ----------------
+app.post("/api/redeem", (req, res) => {
+  const { code, player } = req.body;
+  if (!code || !player) return res.json({ success: false });
 
+  res.json({ success: true, reward: REWARD_SECONDS });
+});
+
+// ---------------- START SERVER ----------------
+app.listen(PORT, () => console.log("Server running (WEBHOOK MODE)"));
   res.sendStatus(200);
 });
 
