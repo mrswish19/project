@@ -106,7 +106,7 @@ app.post("/api/ad-complete", (req, res) => {
 
   bot.sendMessage(
     uid,
-    `✅ Ad completed!\n\n🔑 Redeem Code:\n${selectedCode}\n\nUse in Minecraft with /redeem ${selectedCode}`
+    `✅ Ad completed!\n\n🔑 Redeem Code:\n${selectedCode}\n\nUse this command in minecraft server: \n/redeem ${selectedCode}`
   );
 
   res.sendStatus(200);
